@@ -35,6 +35,7 @@ ZEND_DECLARE_MODULE_GLOBALS(opencc)
 
 /* True global resources - no need for thread safety here */
 int le_opencc;
+char * configName;
 
 /* {{{ PHP_INI
  */
@@ -67,7 +68,27 @@ PHP_FUNCTION(opencc_open)
 		if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &config, &config_len) == FAILURE) {
 			return;
 		}
-		od = opencc_open(config);
+
+		int key_len;
+		char *key;
+		zend_rsrc_list_entry *le, new_le;
+
+		key_len = spprintf(&key, 0, "opecc4php_%s", config);
+		configName = config;
+
+		if (zend_hash_find(&EG(persistent_list), key, key_len + 1, &le) == SUCCESS) {
+			ZEND_REGISTER_RESOURCE(return_value, le->ptr, le_opencc);
+			od = le->ptr;
+		} else {
+			od = opencc_open(config);
+			ZEND_REGISTER_RESOURCE(return_value, od, le_opencc);
+
+			new_le.ptr = od;
+			new_le.type = le_opencc;
+
+			zend_hash_add(&EG(persistent_list), key, key_len + 1, &new_le, sizeof(zend_rsrc_list_entry), NULL);
+		}
+		efree(key);
 	#else
 		zend_string *config;
 		if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "S", &config) == FAILURE) {
@@ -75,7 +96,7 @@ PHP_FUNCTION(opencc_open)
 		}
 		od = opencc_open(config->val);
 	#endif
-	
+
 	if( od == (opencc_t) -1 ) {
 		RETURN_FALSE;
 	}
@@ -102,6 +123,10 @@ PHP_FUNCTION(opencc_close)
 	zval *zod = NULL;
 	opencc_t od;
 
+	int key_len;
+	char *key;
+	zend_rsrc_list_entry *le, new_le;
+
 	if (zend_parse_parameters(argc TSRMLS_CC, "r", &zod) == FAILURE) {
 		return;
 	}
@@ -114,18 +139,19 @@ PHP_FUNCTION(opencc_close)
 	}
 	#endif
 
-	int res = opencc_close(od);
 
-	if(res == 0) {
-		#if PHP_MAJOR_VERSION < 7
-		zend_list_delete(Z_RESVAL_P(zod));
-		#else
-		zend_list_close(Z_RES_P(zod));
-		#endif
-		RETURN_TRUE;
-	} else {
-		RETURN_FALSE;
+	#if PHP_MAJOR_VERSION < 7
+	zend_list_delete(Z_RESVAL_P(zod));
+	key_len = spprintf(&key, 0, "opecc4php_%s", configName);
+
+	if (zend_hash_exists(&EG(persistent_list), key, key_len + 1)) {
+		int result = zend_hash_del(&EG(persistent_list), key, key_len + 1);
 	}
+	efree(key);
+	#else
+	zend_list_close(Z_RES_P(zod));
+	#endif
+	RETURN_TRUE;
 }
 /* }}} */
 
@@ -224,16 +250,23 @@ php_opencc_init_globals(zend_opencc_globals *opencc_globals)
 {
 }
 
+
+static void php_opencc_persist_dtor(zend_rsrc_list_entry *rsrc TSRMLS_DC)
+{
+	opencc_t *od = (opencc_t*)rsrc->ptr;
+	if (od) {
+		opencc_close(od);
+	}
+}
+
 PHP_MINIT_FUNCTION(opencc)
 {
 	/* If you have INI entries, uncomment these lines
 	REGISTER_INI_ENTRIES();
 	*/
 
-    // ZEND_INIT_MODULE_GLOBALS(opencc, php_opencc_init_globals, NULL); 
-	#ifdef ZEND_ENGINE_3
-	le_opencc = zend_register_list_destructors_ex(NULL, NULL, "opencc_od", module_number);
-	#endif
+	// ZEND_INIT_MODULE_GLOBALS(opencc, php_opencc_init_globals, NULL);
+	le_opencc = zend_register_list_destructors_ex(NULL, php_opencc_persist_dtor, "opencc_od", module_number);
 	// OPENCC_G(global_opencc_handler) = (opencc_t) -1 ;
 	return SUCCESS;
 }
