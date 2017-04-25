@@ -69,7 +69,7 @@ PHP_FUNCTION(opencc_open)
 	// }
 	int key_len;
 	char *key;
-	zend_rsrc_list_entry *le, new_le;
+	zend_resource *le, new_le;
 
 	#if PHP_MAJOR_VERSION < 7
 		char *config = NULL;
@@ -105,7 +105,8 @@ PHP_FUNCTION(opencc_open)
 		}
 
 		key_len = spprintf(&key, 0, "opecc4php_%s", config->val);
-		if ((le = zend_hash_find(ht, Z_STR_P(key))) != NULL) {
+		if ((le = zend_hash_find(&EG(persistent_list), config)) != NULL) {
+			
 			zend_register_resource(le, le_opencc);
 			opencc = le->ptr;
 		} else {
@@ -114,9 +115,11 @@ PHP_FUNCTION(opencc_open)
 			opencc->od = od;
 			opencc->config = config->val;
 
+			fprintf(stderr, "new opencc \n");
 			new_le.ptr = opencc;
 			new_le.type = le_opencc;
-			zend_hash_add(&EG(persistent_list), key, key_len + 1, &new_le, sizeof(zend_rsrc_list_entry), NULL);
+			zend_hash_add(&EG(persistent_list), config, &new_le);
+			//zend_register_resource(opencc, le_opencc);
 		}
 	#endif
 
@@ -129,7 +132,7 @@ PHP_FUNCTION(opencc_open)
 	#if PHP_MAJOR_VERSION < 7
 		RETURN_RESOURCE((long) opencc);
 	#else
-		RETURN_RES(zend_register_resource(od, le_opencc));
+		RETURN_RES(zend_register_resource(opencc, le_opencc));
 	#endif
 }
 /* }}} */
@@ -149,7 +152,7 @@ PHP_FUNCTION(opencc_close)
 
 	int key_len;
 	char *key;
-	zend_rsrc_list_entry *le, new_le;
+	zend_resource *le, new_le;
 
 	if (zend_parse_parameters(argc TSRMLS_CC, "r", &zod) == FAILURE) {
 		return;
@@ -185,6 +188,7 @@ PHP_FUNCTION(opencc_close)
     */
 PHP_FUNCTION(opencc_error)
 {
+/*
 	int len;
 
 	if (zend_parse_parameters_none() == FAILURE) {
@@ -205,6 +209,7 @@ PHP_FUNCTION(opencc_error)
 	strncpy(ret->val, msg, len);
 	RETURN_STR(ret);
 	#endif
+*/
 }
 /* }}} */
 
@@ -237,16 +242,20 @@ PHP_FUNCTION(opencc_convert)
 
 	RETURN_STRINGL(rs, len, 0);
 	#else
+
 	zend_string *str;
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "Sr", &str, &zod) == FAILURE) {
 		return;
 	}
 
-	if ((od = (opencc_t)zend_fetch_resource(Z_RES_P(zod), "OpenCC", le_opencc)) == NULL) {
+	if ((opencc = (php_opencc*)zend_fetch_resource(Z_RES_P(zod), "OpenCC", le_opencc)) == NULL) {
 		RETURN_FALSE;
 	}
 
+	od = opencc->od;
+	fprintf(stderr, "start opencc convert\n");
 	outstr = opencc_convert_utf8(od, str->val, -1);
+	fprintf(stderr, "end opencc convert\n");
 	int len = strlen(outstr);
 
 	zend_string *ret = zend_string_alloc(len, 0);
@@ -279,7 +288,7 @@ php_opencc_init_globals(zend_opencc_globals *opencc_globals)
 }
 
 
-static void php_opencc_persist_dtor(zend_rsrc_list_entry *rsrc TSRMLS_DC)
+static void php_opencc_persist_dtor(zend_resource *rsrc TSRMLS_DC)
 {
 	php_opencc *opencc = (php_opencc*)rsrc->ptr;
 	if (opencc) {
