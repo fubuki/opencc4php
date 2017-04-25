@@ -67,6 +67,9 @@ PHP_FUNCTION(opencc_open)
 			// RETURN_RES(zend_register_resource(od, le_opencc));
 		// #endif
 	// }
+	int key_len;
+	char *key;
+	zend_rsrc_list_entry *le, new_le;
 
 	#if PHP_MAJOR_VERSION < 7
 		char *config = NULL;
@@ -74,10 +77,6 @@ PHP_FUNCTION(opencc_open)
 		if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &config, &config_len) == FAILURE) {
 			return;
 		}
-
-		int key_len;
-		char *key;
-		zend_rsrc_list_entry *le, new_le;
 
 		key_len = spprintf(&key, 0, "opecc4php_%s", config);
 
@@ -104,7 +103,21 @@ PHP_FUNCTION(opencc_open)
 		if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "S", &config) == FAILURE) {
 			return;
 		}
-		od = opencc_open(config->val);
+
+		key_len = spprintf(&key, 0, "opecc4php_%s", config->val);
+		if ((le = zend_hash_find(ht, Z_STR_P(key))) != NULL) {
+			zend_register_resource(le, le_opencc);
+			opencc = le->ptr;
+		} else {
+			od = opencc_open(config->val);
+			opencc = pemalloc(sizeof(php_opencc), 1);
+			opencc->od = od;
+			opencc->config = config->val;
+
+			new_le.ptr = opencc;
+			new_le.type = le_opencc;
+			zend_hash_add(&EG(persistent_list), key, key_len + 1, &new_le, sizeof(zend_rsrc_list_entry), NULL);
+		}
 	#endif
 
 	if(opencc == (php_opencc*) -1 ) {
