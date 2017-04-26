@@ -69,7 +69,8 @@ PHP_FUNCTION(opencc_open)
 	// }
 	int key_len;
 	char *key;
-	zend_resource *le, new_le;
+	zend_resource new_le;
+	zval *le;
 
 	#if PHP_MAJOR_VERSION < 7
 		char *config = NULL;
@@ -104,11 +105,11 @@ PHP_FUNCTION(opencc_open)
 			return;
 		}
 
-		key_len = spprintf(&key, 0, "opecc4php_%s", config->val);
+		fprintf(stderr, "find start\n");
+		//key_len = spprintf(&key, 0, "opecc4php_%s", config->val);
 		if ((le = zend_hash_find(&EG(persistent_list), config)) != NULL) {
-			
-			zend_register_resource(le, le_opencc);
-			opencc = le->ptr;
+			opencc = Z_RES_P(le)->ptr;
+			fprintf(stderr, "find end %s\n", opencc->config);
 		} else {
 			od = opencc_open(config->val);
 			opencc = pemalloc(sizeof(php_opencc), 1);
@@ -132,6 +133,7 @@ PHP_FUNCTION(opencc_open)
 	#if PHP_MAJOR_VERSION < 7
 		RETURN_RESOURCE((long) opencc);
 	#else
+		fprintf(stderr, "return\n");
 		RETURN_RES(zend_register_resource(opencc, le_opencc));
 	#endif
 }
