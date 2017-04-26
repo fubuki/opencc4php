@@ -69,8 +69,8 @@ PHP_FUNCTION(opencc_open)
 	// }
 	int key_len;
 	char *key;
-	zend_resource *new_le;
-	zval *le;
+	zend_resource new_le;
+	zend_resource *le;
 
 	#if PHP_MAJOR_VERSION < 7
 		char *config = NULL;
@@ -101,30 +101,28 @@ PHP_FUNCTION(opencc_open)
 		if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "S", &config) == FAILURE) {
 			return;
 		}
+		le = zend_hash_find_ptr(&EG(persistent_list), config);
+		if (le != NULL) {
+			opencc = (opencc_t*) le->ptr;
 
-		fprintf(stderr, "find start\n");
-		//key_len = spprintf(&key, 0, "opecc4php_%s", config->val);
-		if ((le = zend_hash_find(&EG(persistent_list), config)) != NULL) {
-			opencc = Z_RES_P(le)->ptr;
-			new_le = zend_register_resource(opencc, le_opencc);
-			fprintf(stderr, "find end %s\n", opencc->config);
+			fprintf(stderr, "get persistent_list\n");
+			if (le->type != le_opencc) {
+			}
+
+			if (le->ptr == NULL) {
+			}
 		} else {
 			od = opencc_open(config->val);
 			opencc = pemalloc(sizeof(php_opencc), 1);
 			opencc->od = od;
 			opencc->config = config->val;
 
-			fprintf(stderr, "new opencc \n");
-			//new_le.ptr = opencc;
-			//new_le.type = le_opencc;
-			new_le = zend_register_resource(opencc, le_opencc);
-			zval temp;
-			ZVAL_RES(&temp, new_le);
-			fprintf(stderr, "zval_res \n");
-			zend_hash_add(&EG(persistent_list), config, &temp);
-			//zend_register_resource(opencc, le_opencc);
+			new_le.type = le_opencc;
+			new_le.ptr = opencc;
+
+			zend_hash_str_update_mem(&EG(persistent_list), ZSTR_VAL(config), ZSTR_LEN(config), &new_le, sizeof(zend_resource));
 		}
-	#endif
+ 	#endif
 
 	if(opencc == (php_opencc*) -1 ) {
 		RETURN_FALSE;
@@ -135,8 +133,7 @@ PHP_FUNCTION(opencc_open)
 	#if PHP_MAJOR_VERSION < 7
 		ZEND_REGISTER_RESOURCE(return_value, opencc, le_opencc);
 	#else
-		fprintf(stderr, "return\n");
-		RETURN_RES(new_le);
+		RETURN_RES(zend_register_resource(opencc, le_opencc));
 	#endif
 }
 /* }}} */
@@ -192,7 +189,7 @@ PHP_FUNCTION(opencc_close)
     */
 PHP_FUNCTION(opencc_error)
 {
-/*
+
 	int len;
 
 	if (zend_parse_parameters_none() == FAILURE) {
@@ -213,7 +210,7 @@ PHP_FUNCTION(opencc_error)
 	strncpy(ret->val, msg, len);
 	RETURN_STR(ret);
 	#endif
-*/
+
 }
 /* }}} */
 
