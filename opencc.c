@@ -183,6 +183,12 @@ PHP_FUNCTION(opencc_close)
 	efree(key);
 	#else
 	zend_list_close(Z_RES_P(zod));
+
+	config = opencc->config;
+	zend_string *z_key = zend_string_init(config, strlen(config) , 0);
+	if (zend_hash_exists(&EG(persistent_list), z_key)) {
+		zend_hash_del(&EG(persistent_list), z_key);
+	}
 	#endif
 	RETURN_TRUE;
 }
@@ -257,9 +263,7 @@ PHP_FUNCTION(opencc_convert)
 	}
 
 	od = opencc->od;
-	fprintf(stderr, "start opencc convert\n");
 	outstr = opencc_convert_utf8(od, str->val, -1);
-	fprintf(stderr, "end opencc convert\n");
 	int len = strlen(outstr);
 
 	zend_string *ret = zend_string_alloc(len, 0);
