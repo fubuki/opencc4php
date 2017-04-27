@@ -81,7 +81,6 @@ PHP_FUNCTION(opencc_open)
 		key_len = spprintf(&key, 0, "opecc4php_%s", config);
 
 		if (zend_hash_find(&EG(persistent_list), key, key_len + 1,(void*) &le) == SUCCESS) {
-			ZEND_REGISTER_RESOURCE(return_value, le->ptr, le_opencc);
 			opencc = le->ptr;
 		} else {
 			od = opencc_open(config);
@@ -89,8 +88,6 @@ PHP_FUNCTION(opencc_open)
 			opencc = pemalloc(sizeof(php_opencc), 1);
 			opencc->od = od;
 			opencc->config = config;
-
-			ZEND_REGISTER_RESOURCE(return_value, opencc, le_opencc);
 
 			new_le.ptr = opencc;
 			new_le.type = le_opencc;
@@ -127,7 +124,7 @@ PHP_FUNCTION(opencc_open)
 	// OPENCC_G(global_opencc_handler) = od;
     /* fprintf(stderr, "create a new opencc handler and store into global_opencc_handler[%p]\n", OPENCC_G(global_opencc_handler)); */
 	#if PHP_MAJOR_VERSION < 7
-		RETURN_RESOURCE((long) opencc);
+		ZEND_REGISTER_RESOURCE(return_value, opencc, le_opencc);
 	#else
 		RETURN_RES(zend_register_resource(od, le_opencc));
 	#endif
@@ -156,7 +153,7 @@ PHP_FUNCTION(opencc_close)
 	}
 
 	#if PHP_MAJOR_VERSION < 7
-	opencc = (php_opencc*)zod->value.lval;
+	ZEND_FETCH_RESOURCE(opencc, php_opencc*, &zod, -1, "OpenCC", le_opencc);
 	#else
 	if ((opencc = (opencc_t)zend_fetch_resource(Z_RES_P(zod), "OpenCC", le_opencc)) == NULL) {
 		RETURN_FALSE;
@@ -224,8 +221,8 @@ PHP_FUNCTION(opencc_convert)
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "sr", &str, &str_len, &zod) == FAILURE) {
 		return;
 	}
-	opencc = (php_opencc*)zod->value.lval;
 
+	ZEND_FETCH_RESOURCE(opencc, php_opencc*, &zod, -1, "OpenCC", le_opencc);
 	od = opencc->od;
 	outstr = opencc_convert_utf8(od, str, -1);
 
@@ -295,7 +292,7 @@ PHP_MINIT_FUNCTION(opencc)
 	*/
 
 	// ZEND_INIT_MODULE_GLOBALS(opencc, php_opencc_init_globals, NULL);
-	le_opencc = zend_register_list_destructors_ex(NULL, php_opencc_persist_dtor, "opencc_od", module_number);
+	le_opencc = zend_register_list_destructors_ex(php_opencc_persist_dtor, NULL,"opencc_od", module_number);
 	// OPENCC_G(global_opencc_handler) = (opencc_t) -1 ;
 	return SUCCESS;
 }
