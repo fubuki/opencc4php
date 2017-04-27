@@ -292,7 +292,7 @@ PHP_MINIT_FUNCTION(opencc)
 	*/
 
 	// ZEND_INIT_MODULE_GLOBALS(opencc, php_opencc_init_globals, NULL);
-	le_opencc = zend_register_list_destructors_ex(NULL, php_opencc_persist_dtor, "opencc_od", module_number);
+	le_opencc = zend_register_list_destructors_ex(NULL, php_opencc_persist_dtor, "OpenCC", module_number);
 	// OPENCC_G(global_opencc_handler) = (opencc_t) -1 ;
 	return SUCCESS;
 }
