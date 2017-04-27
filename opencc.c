@@ -69,10 +69,10 @@ PHP_FUNCTION(opencc_open)
 	// }
 	int key_len;
 	char *key;
-	zend_resource new_le;
-	zend_resource *le;
 
 	#if PHP_MAJOR_VERSION < 7
+
+		zend_rsrc_list_entry *le, new_le;
 		char *config = NULL;
 		int config_len;
 		if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &config, &config_len) == FAILURE) {
@@ -98,6 +98,7 @@ PHP_FUNCTION(opencc_open)
 		efree(key);
 	#else
 		zend_string *config;
+		zend_resource *le, new_le;
 		if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "S", &config) == FAILURE) {
 			return;
 		}
@@ -153,7 +154,6 @@ PHP_FUNCTION(opencc_close)
 
 	int key_len;
 	char *key;
-	zend_resource *le, new_le;
 
 	if (zend_parse_parameters(argc TSRMLS_CC, "r", &zod) == FAILURE) {
 		return;
@@ -292,7 +292,17 @@ php_opencc_init_globals(zend_opencc_globals *opencc_globals)
 {
 }
 
+#if PHP_MAJOR_VERSION < 7
+static void php_opencc_persist_dtor(zend_rsrc_list_entry *rsrc TSRMLS_DC)
+{
+	php_opencc *opencc = (php_opencc*)rsrc->ptr;
+	if (opencc) {
+		opencc_close(opencc->od);
+	}
+	pefree(opencc, 1);
+}
 
+#else
 static void php_opencc_persist_dtor(zend_resource *rsrc TSRMLS_DC)
 {
 	php_opencc *opencc = (php_opencc*)rsrc->ptr;
@@ -301,6 +311,7 @@ static void php_opencc_persist_dtor(zend_resource *rsrc TSRMLS_DC)
 	}
 	pefree(opencc, 1);
 }
+#endif
 
 PHP_MINIT_FUNCTION(opencc)
 {
